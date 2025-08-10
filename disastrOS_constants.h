@@ -40,6 +40,12 @@
 #define DSOS_CALL_DESTROY_RESOURCE 9
 #define DSOS_CALL_SHUTDOWN  10
 
+// syscall numbers for semaphores
+#define DSOS_CALL_SEMOPEN 11
+#define DSOS_CALL_SEMCLOSE 12
+#define DSOS_CALL_SEMWAIT 13
+#define DSOS_CALL_SEMPOST 14
+
 //resources
 #define DSOS_CREATE 0x1
 #define DSOS_READ 0x2

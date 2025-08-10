@@ -11,6 +11,8 @@
 #include "disastrOS_timer.h"
 #include "disastrOS_resource.h"
 #include "disastrOS_descriptor.h"
+#include "disastrOS_semaphore.h"
+
 
 FILE* log_file=NULL;
 PCB* init_pcb;
@@ -115,8 +117,9 @@ void disastrOS_trap(){
     running->syscall_retvalue = DSOS_ESYSCALL_NOT_IMPLEMENTED;
     goto return_to_process;
   }
- 
+
   disastrOS_debug("syscall: %d, pid: %d\n", syscall_num, running->pid);
+  disastrOS_debug("[TRAP] syscall=%d -> %p\n", syscall_num, (void*)my_syscall); // <— AGGIUNTA per debug
   (*my_syscall)();
   //internal_schedule();
  return_to_process:
@@ -176,6 +179,18 @@ void disastrOS_start(void (*f)(void*), void* f_args, char* logfile){
 
   syscall_vector[DSOS_CALL_SHUTDOWN]      = internal_shutdown;
   syscall_numarg[DSOS_CALL_SHUTDOWN]      = 0;
+
+  syscall_vector[DSOS_CALL_SEMOPEN]   = internal_semopen;
+  syscall_numarg[DSOS_CALL_SEMOPEN]   = 2; // key, initial_count
+
+  syscall_vector[DSOS_CALL_SEMCLOSE]  = internal_semclose;
+  syscall_numarg[DSOS_CALL_SEMCLOSE]  = 1; // sem_fd
+
+  syscall_vector[DSOS_CALL_SEMWAIT]   = internal_semwait;
+  syscall_numarg[DSOS_CALL_SEMWAIT]   = 1; // sem_fd
+
+  syscall_vector[DSOS_CALL_SEMPOST]   = internal_sempost;
+  syscall_numarg[DSOS_CALL_SEMPOST]   = 1; // sem_fd
 
   // setup the scheduling lists
   running=0;
@@ -306,3 +321,21 @@ void disastrOS_printStatus(){
   PCBList_print(&zombie_list);
   printf("\n***********************************************\n\n");
 };
+
+//semaphores
+int disastrOS_semopen(int key, int initial_count){
+  return disastrOS_syscall(DSOS_CALL_SEMOPEN, key, initial_count, 0, 0);
+}
+
+int disastrOS_semclose(int sem_fd){
+  return disastrOS_syscall(DSOS_CALL_SEMCLOSE, sem_fd, 0, 0, 0);
+}
+
+int disastrOS_semwait(int sem_fd){
+  return disastrOS_syscall(DSOS_CALL_SEMWAIT, sem_fd, 0, 0, 0);
+}
+
+int disastrOS_sempost(int sem_fd){
+  return disastrOS_syscall(DSOS_CALL_SEMPOST, sem_fd, 0, 0, 0);
+}
+

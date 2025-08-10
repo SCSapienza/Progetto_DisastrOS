@@ -29,6 +29,21 @@ void childFunction(void* args){
   disastrOS_exit(disastrOS_getpid()+1);
 }
 
+static void test_semaphores(void){
+  printf("[TEST] Semaphores – Giorno 1 (stub)\n");
+  int sem = disastrOS_semopen(123, 1);
+  printf("semopen -> %d (atteso -501)\n", sem);
+
+  int r1 = disastrOS_semwait(sem);
+  printf("semwait -> %d (atteso -501)\n", r1);
+
+  int r2 = disastrOS_sempost(sem);
+  printf("sempost -> %d (atteso -501)\n", r2);
+
+  int r3 = disastrOS_semclose(sem);
+  printf("semclose -> %d (atteso -501)\n", r3);
+}
+
 
 void initFunction(void* args) {
   disastrOS_printStatus();
@@ -48,7 +63,7 @@ void initFunction(void* args) {
     disastrOS_spawn(childFunction, 0);
     alive_children++;
   }
-
+  test_semaphores();
   disastrOS_printStatus();
   int retval;
   int pid;
@@ -61,6 +76,8 @@ void initFunction(void* args) {
   printf("shutdown!");
   disastrOS_shutdown();
 }
+
+
 
 int main(int argc, char** argv){
   char* logfilename=0;
