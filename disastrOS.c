@@ -22,7 +22,7 @@ ListHead ready_list;
 ListHead waiting_list;
 ListHead zombie_list;
 ListHead timer_list;
-
+ListHead semaphores_list; //list of semaphores
 // a resource can be a device, a file or an ipc thing
 ListHead resources_list;
 
@@ -199,7 +199,7 @@ void disastrOS_start(void (*f)(void*), void* f_args, char* logfile){
   List_init(&zombie_list);
   List_init(&resources_list);
   List_init(&timer_list);
-
+  List_init(&semaphores_list); //list of semaphores
 
   /* INITIALIZATION OF SYSCALL AND INTERRUPT INFRASTRUCTIRE*/
   disastrOS_debug("setting entry point for system shudtown... ");
