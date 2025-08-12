@@ -46,6 +46,9 @@
 #define DSOS_CALL_SEMWAIT 13
 #define DSOS_CALL_SEMPOST 14
 
+// max semaphores
+#define DSOS_MAX_SEMAPHORES 256
+
 //resources
 #define DSOS_CREATE 0x1
 #define DSOS_READ 0x2
