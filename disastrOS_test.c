@@ -30,18 +30,24 @@ void childFunction(void* args){
 }
 
 static void test_semaphores(void){
-  printf("[TEST] Semaphores – Giorno 1 (stub)\n");
-  int sem = disastrOS_semopen(123, 1);
-  printf("semopen -> %d (atteso -501)\n", sem);
+  const int key = 123;
+  const int initial_value = 1;
 
-  int r1 = disastrOS_semwait(sem);
-  printf("semwait -> %d (atteso -501)\n", r1);
+  printf("[TEST] Semaphores (semopen/semclose)\n");
+  int sem = disastrOS_semopen(key, initial_value);
+  printf("semopen(key=%d, initial=%d) -> %d (atteso >=0)\n",
+         key, initial_value, sem);
 
-  int r2 = disastrOS_sempost(sem);
-  printf("sempost -> %d (atteso -501)\n", r2);
+  int wait_ret = disastrOS_semwait(sem);
+  printf("semwait(fd=%d) -> %d (atteso -501 finché wait non è implementata)\n",
+         sem, wait_ret);
 
-  int r3 = disastrOS_semclose(sem);
-  printf("semclose -> %d (atteso -501)\n", r3);
+  int post_ret = disastrOS_sempost(sem);
+  printf("sempost(fd=%d) -> %d (atteso -501 finché post non è implementata)\n",
+         sem, post_ret);
+
+  int close_ret = disastrOS_semclose(sem);
+  printf("semclose(fd=%d) -> %d (atteso 0)\n", sem, close_ret);
 }
 
 

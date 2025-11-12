@@ -4,6 +4,7 @@
 #include "disastrOS_semaphore.h"
 #include "pool_allocator.h"
 #include "assert.h"
+#include "disastrOS_pcb.h"
 
 #define SEMAPHORE_SIZE        sizeof(Semaphore)
 #define SEMAPHORE_MEMSIZE    (sizeof(Semaphore) + sizeof(int))
@@ -89,22 +90,75 @@ static inline int argi(int idx) { //funzione helper
 }
 
 void internal_semopen(){
-
 int key = argi(0);
 int initial = argi(1);
 disastrOS_debug("[INTERNAL] semopen key=%d initial=%d (pid=%d)", key, initial, disastrOS_getpid());
-(void)key; (void)initial;// evitare warning non usato
- running->syscall_retvalue = DSOS_EUNIMPL; //codice errore non implementato 
+
+//validazione
+if(key<0 || initial<0){
+    running->syscall_retvalue = DSOS_EINVAL; //argomenti non validi
+    return;
 }
 
-  
-  
+// creazione semaforo
+
+Semaphore* s = Semaphore_byId(&semaphores_list, key);
+if(!s){
+    s = sem_init(key, initial);
+    if(!s){
+        running->syscall_retvalue = DSOS_EAGAIN; //non creato/risorsa finita
+        return;
+    }
+  }
+
+//registra il processo chiamante come "opener" se non presente
+PCBPtr* opener= PCBPtr_byPID(&s->descriptors, running->pid);
+if(!opener){
+    opener=PCBPtr_alloc(running);
+  if(!opener){
+      running->syscall_retvalue = DSOS_EAGAIN; //non creato/risorsa finita
+      return;
+    }
+    List_insert(&s->descriptors, s->descriptors.last, (ListItem*) opener);
+   
+
+  }
+running->syscall_retvalue = key;
+}
 
 void internal_semclose(){
-int sem_fd = argi(0);
-disastrOS_debug("[INTERNAL] semclose fd=%d (pid=%d)", sem_fd, disastrOS_getpid());
-(void)sem_fd;
-running->syscall_retvalue = DSOS_EUNIMPL;
+  int sem_fd = argi(0);
+  disastrOS_debug("[INTERNAL] semclose fd=%d (pid=%d)\n",
+                  sem_fd, disastrOS_getpid());
+
+  // validazione
+  if (sem_fd < 0){
+    running->syscall_retvalue = DSOS_EINVAL;
+    return;
+  }
+
+  Semaphore* s = Semaphore_byId(&semaphores_list, sem_fd);
+  if (!s){
+    running->syscall_retvalue = DSOS_EINVAL;
+    return;
+  }
+
+  // il processo deve risultare tra gli "opener"
+  PCBPtr* opener = PCBPtr_byPID(&s->descriptors, running->pid);
+  if (!opener){
+    running->syscall_retvalue = DSOS_EINVAL; // non aperto da questo processo
+    return;
+  }
+
+  // stacca e libera la registrazione dell'opener
+  List_detach(&s->descriptors, (ListItem*) opener);
+  PCBPtr_free(opener);
+
+  if (s->descriptors.size == 0 && s->waiters.size == 0){
+    (void) sem_destroy(s->id); // può restituire DSOS_EAGAIN/DSOS_EINVAL
+  }
+
+  running->syscall_retvalue = 0; // close riuscita
 }
 
 void internal_semwait(){
@@ -113,9 +167,6 @@ disastrOS_debug("[INTERNAL] semwait fd=%d (pid=%d)", sem_fd, disastrOS_getpid())
 (void)sem_fd;
 running->syscall_retvalue = DSOS_EUNIMPL; //codice errore non implementato
 }
-
-  
-  
 
 void internal_sempost(){
 int sem_fd = argi(0);
