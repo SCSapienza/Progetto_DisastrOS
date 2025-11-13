@@ -161,11 +161,44 @@ void internal_semclose(){
   running->syscall_retvalue = 0; // close riuscita
 }
 
-void internal_semwait(){
-int sem_fd = argi(0);
-disastrOS_debug("[INTERNAL] semwait fd=%d (pid=%d)", sem_fd, disastrOS_getpid());
-(void)sem_fd;
-running->syscall_retvalue = DSOS_EUNIMPL; //codice errore non implementato
+void internal_semwait() {
+  int sem_fd = running->syscall_args[0];
+  disastrOS_debug("[INTERNAL] semwait fd=%d (pid=%d)\n", sem_fd, disastrOS_getpid());
+
+  // validazione argomenti
+  if (sem_fd < 0) {
+    running->syscall_retvalue = DSOS_EINVAL;
+    return;
+  }
+  // cerca il semaforo
+  Semaphore* s = Semaphore_byId(&semaphores_list, sem_fd);
+  if (!s) {
+    running->syscall_retvalue = DSOS_EINVAL; // semaforo inesistente
+    return;
+  }
+  // il processo chiamante deve risultare tra gli "opener" del semaforo
+  PCBPtr* opener = PCBPtr_byPID(&s->descriptors, running->pid);
+  if (!opener) {
+    running->syscall_retvalue = DSOS_EINVAL; // non ha semopen su questo sem
+    return;
+  }
+  // caso count > 0: decremento
+  if (s->count > 0) {
+    --(s->count);
+    running->syscall_retvalue = 0;
+    return;
+  }
+  // caso count == 0: blocco
+  // - metto in coda il processo in FIFO sia nella coda del semaforo (waiters) sia nella waiting_list di sistema
+  // - imposto lo stato a Waiting
+  // - passo la CPU al prossimo processo pronto (pattern come sleep/wait)
+  running->status = Waiting;
+  List_insert(&s->waiters, s->waiters.last, (ListItem*) running);     // FIFO sui waiters del semaforo
+  List_insert(&waiting_list, waiting_list.last, (ListItem*) running); // processo finisce tra i waiting globali
+
+  // scelgo il prossimo running dalla ready_list (se esiste)
+  PCB* next_running = (PCB*) List_detach(&ready_list, ready_list.first);
+  running = next_running;
 }
 
 void internal_sempost(){

@@ -39,12 +39,12 @@ static void test_semaphores(void){
          key, initial_value, sem);
 
   int wait_ret = disastrOS_semwait(sem);
-  printf("semwait(fd=%d) -> %d (atteso -501 finché wait non è implementata)\n",
-         sem, wait_ret);
+  printf("semwait(fd=%d) -> %d (atteso 0: count iniziale=%d > 0)\n",
+       sem, wait_ret, initial_value);
 
   int post_ret = disastrOS_sempost(sem);
   printf("sempost(fd=%d) -> %d (atteso -501 finché post non è implementata)\n",
-         sem, post_ret);
+       sem, post_ret);
 
   int close_ret = disastrOS_semclose(sem);
   printf("semclose(fd=%d) -> %d (atteso 0)\n", sem, close_ret);
