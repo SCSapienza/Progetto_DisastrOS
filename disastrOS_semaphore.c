@@ -202,10 +202,46 @@ void internal_semwait() {
 }
 
 void internal_sempost(){
-int sem_fd = argi(0);
-disastrOS_debug("[INTERNAL] sempost fd=%d (pid=%d)", sem_fd, disastrOS_getpid());
-(void)sem_fd;
-running->syscall_retvalue = DSOS_EUNIMPL;
+  int sem_fd = argi(0);
+  disastrOS_debug("[INTERNAL] sempost fd=%d (pid=%d)\n",
+                  sem_fd, disastrOS_getpid());
+
+  
+  if (sem_fd < 0) {
+    running->syscall_retvalue = DSOS_EINVAL;
+    return;
+  }
+
+  //cerca il semaforo
+  Semaphore* s = Semaphore_byId(&semaphores_list, sem_fd);
+  if (!s) {
+    running->syscall_retvalue = DSOS_EINVAL;   
+    return;
+  }
+
+ 
+  PCBPtr* opener = PCBPtr_byPID(&s->descriptors, running->pid);
+  if (!opener) {
+    running->syscall_retvalue = DSOS_EINVAL;   // non è un opener
+    return;
+  }
+
+  //se ci sono processi in attesa sul semaforo, sveglia il primo (FIFO)
+  if (s->waiters.first) {
+    // stacchiamo il primo PCB dalla coda dei waiters del semaforo
+    PCB* pcb_to_wake = (PCB*) List_detach(&s->waiters, s->waiters.first);
+
+    // lo rimuoviamo anche dalla waiting_list globale
+    List_detach(&waiting_list, (ListItem*) pcb_to_wake);
+
+    // lo mettiamo in stato Ready e in coda alla ready_list
+    pcb_to_wake->status = Ready;
+    List_insert(&ready_list, ready_list.last, (ListItem*) pcb_to_wake);
+
+  } else {
+    ++(s->count);
+  }
+  running->syscall_retvalue = 0;
 }
 
 
