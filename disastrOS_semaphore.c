@@ -22,8 +22,6 @@ void Semaphore_init(void) {
   assert(!res);
 }
 
-
-
 static Semaphore* Semaphore_alloc_(int id, int value) {
   Semaphore* s = (Semaphore*) PoolAllocator_getBlock(&_semaphore_allocator);
   if (!s) return 0;
@@ -55,15 +53,12 @@ void Semaphore_print(Semaphore* s) {
 }
 
 Semaphore* sem_init(int id, int value) {
-  // validazione argomenti
-  if (id < 0 || value < 0) return 0; 
+  if (id < 0 || value < 0) return 0;
 
-  // unicità
   if (Semaphore_byId(&semaphores_list, id)) {
-    return 0; // già esiste: il chiamante mapperà a DSOS_EAGAIN
+    return 0; // già presente
   }
 
-  // alloc + inserimento in lista globale
   Semaphore* s = Semaphore_alloc_(id, value);
   if (!s) return 0;
   List_insert(&semaphores_list, semaphores_list.last, (ListItem*) s);
@@ -71,59 +66,52 @@ Semaphore* sem_init(int id, int value) {
 }
 
 int sem_destroy(int id) {
-  //cerca
   Semaphore* s = Semaphore_byId(&semaphores_list, id);
-  if (!s) return DSOS_EINVAL; // non esiste
+  if (!s) return DSOS_EINVAL;
 
-  // controlla che non sia “in uso”
+  // controllo se qualcuno lo sta usando
   if (s->descriptors.size > 0 || s->waiters.size > 0) {
-    return DSOS_EAGAIN; // occupato (processi con fd aperto o in coda)
+    return DSOS_EAGAIN;
   }
 
-  // stacca dalla lista globale e free
   List_detach(&semaphores_list, (ListItem*) s);
   return Semaphore_free(s);
 }
 
-static inline int argi(int idx) { //funzione helper
+static inline int argi(int idx) {
     return running->syscall_args[idx];
 }
 
 void internal_semopen(){
-int key = argi(0);
-int initial = argi(1);
-disastrOS_debug("[INTERNAL] semopen key=%d initial=%d (pid=%d)", key, initial, disastrOS_getpid());
+  int key = argi(0);
+  int initial = argi(1);
+  disastrOS_debug("[INTERNAL] semopen key=%d initial=%d (pid=%d)", key, initial, disastrOS_getpid());
 
-//validazione
-if(key<0 || initial<0){
-    running->syscall_retvalue = DSOS_EINVAL; //argomenti non validi
-    return;
-}
-
-// creazione semaforo
-
-Semaphore* s = Semaphore_byId(&semaphores_list, key);
-if(!s){
-    s = sem_init(key, initial);
-    if(!s){
-        running->syscall_retvalue = DSOS_EAGAIN; //non creato/risorsa finita
-        return;
-    }
-  }
-
-//registra il processo chiamante come "opener" se non presente
-PCBPtr* opener= PCBPtr_byPID(&s->descriptors, running->pid);
-if(!opener){
-    opener=PCBPtr_alloc(running);
-  if(!opener){
-      running->syscall_retvalue = DSOS_EAGAIN; //non creato/risorsa finita
+  if(key<0 || initial<0){
+      running->syscall_retvalue = DSOS_EINVAL;
       return;
-    }
-    List_insert(&s->descriptors, s->descriptors.last, (ListItem*) opener);
-   
-
   }
-running->syscall_retvalue = key;
+
+  Semaphore* s = Semaphore_byId(&semaphores_list, key);
+  if(!s){
+      s = sem_init(key, initial);
+      if(!s){
+          running->syscall_retvalue = DSOS_EAGAIN;
+          return;
+      }
+  }
+
+  // registro il processo
+  PCBPtr* opener= PCBPtr_byPID(&s->descriptors, running->pid);
+  if(!opener){
+      opener=PCBPtr_alloc(running);
+      if(!opener){
+          running->syscall_retvalue = DSOS_EAGAIN;
+          return;
+      }
+      List_insert(&s->descriptors, s->descriptors.last, (ListItem*) opener);
+  }
+  running->syscall_retvalue = key;
 }
 
 void internal_semclose(){
